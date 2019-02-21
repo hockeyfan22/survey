@@ -1,0 +1,308 @@
+---
+title: "travel"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(fuzzyjoin)
+library(stringr)
+library(ggthemes)
+library(ggrepel)
+library(extrafont)
+library(hrbrthemes)
+library(xkcd)
+library(lubridate)
+
+travel = read_csv("WatchesTable.csv")
+```
+
+```{r}
+travel %>%
+  mutate(month = month(as.POSIXlt(first_search_dt, format="%m/%d/%Y"))) %>% 
+  count(month) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(percent = n/total*100)
+
+max(travel$first_search_dt)
+  
+travel %>% 
+  filter(user_id == "b02bbbd79da59fe7a2970ad385fcc6596c8920ddc5a12282b685f9c544fe9979")
+```
+```{r}
+travel %>% 
+  mutate(month = month(as.POSIXlt(first_search_dt, format="%m/%d/%Y"))) %>% 
+  select(month,first_search_dt,status_latest) %>% 
+  group_by(month) %>% 
+  count(status_latest) %>% 
+  ggplot(aes(month,n,fill = status_latest)) +
+  geom_area() +
+  geom_text(aes(label = n), position = position_stack(vjust = 0.5),
+colour = "black", size = 3, family = "Roboto Condensed",
+show.legend = F) +
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "right", legend.direction = "vertical",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "Month", y="Number of Searches")
+
+```
+
+```{r}
+travel %>% 
+  mutate(month = month(as.POSIXlt(first_search_dt, format="%m/%d/%Y"))) %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  filter(status_latest != "shopped") %>% 
+  group_by(month) %>% 
+  count(status_latest) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = round((n/total)*100,2)) %>% 
+  ggplot(aes(month,prop, fill = status_latest)) +
+  geom_col() +
+  geom_text(aes(label = prop), position = position_stack(vjust = 0.5),
+colour = "white", size = 3, family = "Roboto Condensed",
+show.legend = F) +
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "right", legend.direction = "vertical",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "Month", y="Proportion of Searches")
+
+```
+
+```{r}
+#do not use
+travel$firstsearchdt = as.Date(travel$first_search_dt, format = "%m/%d/%Y")
+
+travel %>% 
+  group_by(firstsearchdt) %>% 
+  filter(status_latest == "booked") %>% 
+  summarize(rev = mean(last_total, na.rm = TRUE)) %>% 
+  ggplot(aes(firstsearchdt,rev)) +
+    geom_point() +
+  geom_line()
+
+```
+
+
+```{r}
+travel %>% 
+  filter(status_latest == "booked" | status_latest == "active") %>% 
+  group_by(status_latest,week =floor_date(firstsearchdt, "week")) %>%
+  summarize(rev = mean(last_total, na.rm = TRUE)) %>% 
+  ggplot(aes(week,rev, color = status_latest)) +
+    geom_point() +
+  geom_line()
+```
+
+```{r}
+travel %>% 
+  filter(status_latest == "booked" | status_latest == "active") %>% 
+  group_by(status_latest,week =floor_date(firstsearchdt, "week")) %>%
+  summarize(rev = round(mean(last_total, na.rm = TRUE))) %>% 
+  spread(key = status_latest, value = rev) %>% 
+  ggplot(aes(x = week)) +
+  geom_line(aes(y=active, color = "#FA6866")) +
+  geom_col(aes(y= booked, fill = "#FA6866")) +
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "bottom", legend.direction = "horizontal",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "", y="Average Booking Amounts")+
+  theme(legend.position="none")
+  
+```
+
+
+
+```{r}
+travel %>%
+  group_by(week =floor_date(firstsearchdt, "week")) %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  filter(first_rec == "buy" | last_rec == "buy") %>% 
+  count(status_latest) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = (n/total)*100) %>% 
+  ggplot(aes(week,prop, fill = status_latest)) +
+  geom_area() +
+  scale_y_continuous(labels = comma)+
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "right", legend.direction = "vertical",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "Month", y="Percentage of Searches")
+  
+```
+```{r}
+travel$firstsearchdt = as.Date(travel$first_search_dt, format = "%m/%d/%y")
+
+travel %>% 
+  count(weekday = wday(firstsearchdt, label = TRUE)) %>% 
+  ggplot(aes(weekday,n)) +
+  geom_line(group = 1) +
+  expand_limits(y = 0)
+
+travel %>% 
+  count(firstsearchdt) %>% 
+  group_by(weekday = wday(firstsearchdt, label = TRUE)) %>% 
+    summarize(average = mean(n)) %>% 
+  ggplot(aes(weekday,average)) +
+  geom_line(group = 1) + 
+  expand_limits(y=0)
+```
+
+
+```{r}
+#Investigation of departure dates
+
+travel$departuredate = as.Date(travel$departure_date, format = "%m/%d/%y")
+
+travel %>%
+  group_by(week =floor_date(departuredate, "week")) %>% 
+  count(week, sort = TRUE) %>% 
+  ggplot(aes(week,n, color = "#FA6866")) +
+  geom_line(group = 1, size = 2) +
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "bottom", legend.direction = "horizontal",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "departure date", y="search count")+
+  theme(legend.position="none")
+
+travel %>%
+  filter(!is.na(watch_added_dt)) %>% 
+  group_by(week =floor_date(departuredate, "week")) %>% 
+  count(week, sort = TRUE) %>% 
+  ggplot(aes(week,n)) +
+  geom_line(group = 1)
+
+travel %>%
+  filter(status_latest == "active") %>% 
+  group_by(week =floor_date(departuredate, "week")) %>% 
+  count(week, sort = TRUE) %>% 
+  ggplot(aes(week,n)) +
+  geom_line(group = 1)
+
+travel %>%
+  group_by(status_latest, week =floor_date(departuredate, "week")) %>% 
+  count(week, sort = TRUE) %>% 
+  ggplot(aes(week,n, color = status_latest)) +
+  geom_line()
+
+```
+
+```{r}
+
+
+travel$departuredate = as.Date(travel$departure_date, format = "%m/%d/%y")
+
+travel$firstsearchdt = as.Date(travel$first_search_dt, format = "%m/%d/%y")
+
+travel %>% 
+  select(departuredate,firstsearchdt) %>% 
+  mutate(difference = departuredate - firstsearchdt) %>% 
+  ggplot(aes(difference, fill = "#FA6866"))+
+  geom_histogram() +
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "bottom", legend.direction = "horizontal",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "difference between first search date and departure date", y="search count")+
+  theme(legend.position="none")
+  
+travel %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  select(departuredate,firstsearchdt) %>% 
+  mutate(difference = departuredate - firstsearchdt) %>% 
+  summarize(average = mean(difference))
+```
+
+```{r}
+
+travel$firstsearchdt = as.Date(travel$first_search_dt, format = "%m/%d/%y")
+
+travel$watchadd = as.Date(travel$watch_added_dt, format = "%m/%d/%y")
+
+travel %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  select(firstsearchdt2,watchadd) %>% 
+  mutate(watchdiff = watchadd - firstsearchdt2) %>% count(watchdiff) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total*100)
+```
+
+```{r}
+travel %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  filter(status_latest != "shopped") %>% 
+  count(status_latest) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total*100) %>% 
+  ggplot(aes(reorder(status_latest,prop), prop, fill = "#FA6866")) + 
+  geom_col() +
+  theme_economist() +
+theme(axis.line.x = element_line(size = .5, colour = "black"),
+legend.position = "bottom", legend.direction = "horizontal",
+legend.title = element_blank(),
+plot.title = element_text(family = "Roboto Condensed"),
+text = element_text(family = "Roboto Condensed")) +
+guides(fill = guide_legend(reverse = T))+
+  labs(x = "difference between first search date and departure date", y="search count")+
+  theme(legend.position="none")
+
+travel %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  filter(status_latest != "shopped") %>% 
+  group_by(status_latest) %>% 
+  summarize(average = mean(total_notifs, na.rm = TRUE))
+
+travel %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  filter(status_latest != "shopped") %>% 
+  group_by(status_latest) %>% 
+  summarize(average = mean(total_buy_notifs, na.rm = TRUE))
+```
+
+```{r}
+travel %>% 
+  filter(!is.na(watch_added_dt)) %>% 
+  filter(status_latest != "shopped") %>% 
+  summarize(average = mean(lowest_total, na.rm= TRUE))
+
+travel %>% 
+  summarize(average = mean(lowest_total, na.rm= TRUE))
+```
+
+
+
+```{r}
+
+travel$watchadd = as.Date(travel$watch_added_dt, format = "%m/%d/%y")
+```
+
+
