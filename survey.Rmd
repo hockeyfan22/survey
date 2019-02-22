@@ -1,0 +1,75 @@
+---
+title: "survey"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(fuzzyjoin)
+library(stringr)
+library(ggthemes)
+library(ggrepel)
+library(extrafont)
+library(hrbrthemes)
+library(xkcd)
+library(cowplot)
+library(magick)
+
+merchants = read_csv("payments.csv")
+```
+
+#Understanding the Recurring Payment Experience 
+```{r}
+#S6 - recurring calculation
+merchants %>%  
+  summarize(mean = mean(Q1,na.rm = TRUE))
+
+#recurring increase from 2 years
+merchants %>% 
+  filter(!is.na(Q2)) %>% 
+  count(Q2) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total * 100)
+
+#S6 - card-on-file calculation
+merchants %>%
+  summarize(mean = mean(Q3,na.rm = TRUE))
+
+#increase from 2 years
+merchants %>% 
+  filter(!is.na(Q4)) %>% 
+  count(Q4) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total * 100)
+
+```
+
+#Customer Outreach
+
+```{r}
+
+merchants %>% 
+  select(Respondent.ID, `Q5 (1/4)`, `Q5 (2/4)` , `Q5 (3/4)` , `Q5 (4/4)`) %>% 
+  count(`Q5 (1/4)`) %>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total*100)
+
+merchants %>% 
+  select(Respondent.ID, `Q5 (1/4)`, `Q5 (2/4)` , `Q5 (3/4)` , `Q5 (4/4)`) %>% 
+  count(`Q5 (2/4)`)%>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total*100)
+
+merchants %>% 
+  select(Respondent.ID, `Q5 (1/4)`, `Q5 (2/4)` , `Q5 (3/4)` , `Q5 (4/4)`) %>% 
+  count(`Q5 (3/4)`)%>% 
+  mutate(total = sum(n)) %>% 
+  mutate(prop = n/total*100)
+
+```
+
